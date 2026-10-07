@@ -12,12 +12,16 @@ const links = [
   { href: "/organisation/parametres", label: "Paramètres" },
 ];
 
+// Réservé au rôle COMITE (pas aux responsables) — voir requireComiteUser.
+const comiteLink = { href: "/organisation/comite", label: "Comité" };
+
 export default async function OrganisationLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  await requireOrganisationUser();
+  const user = await requireOrganisationUser();
+  const visibleLinks = user.role === "COMITE" ? [...links, comiteLink] : links;
 
   return (
     <div>
@@ -28,7 +32,7 @@ export default async function OrganisationLayout({
       </div>
       <div className="flex flex-col gap-6 sm:flex-row">
         <nav className="flex shrink-0 flex-row gap-1 sm:w-44 sm:flex-col">
-          {links.map((link) => (
+          {visibleLinks.map((link) => (
             <Link
               key={link.href}
               href={link.href}

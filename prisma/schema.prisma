@@ -71,15 +71,18 @@ model User {
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
-  announcements     Announcement[]
-  events            Event[]
-  signups           EventSignup[]
-  vacations         Vacation[]
-  taskAssignees     TaskAssignee[]
-  pushSubscriptions PushSubscription[]
-  openingShifts     OpeningShiftAssignee[]
-  availabilities    VolunteerAvailability[]
-  groupMemberships  GroupMembership[]
+  announcements      Announcement[]
+  events             Event[]
+  signups            EventSignup[]
+  vacations          Vacation[]
+  taskAssignees      TaskAssignee[]
+  pushSubscriptions  PushSubscription[]
+  openingShifts      OpeningShiftAssignee[]
+  availabilities     VolunteerAvailability[]
+  groupMemberships   GroupMembership[]
+  comiteItems        ComiteItem[]
+  comiteItemDeclines ComiteItemDecline[]
+  comiteItemNotes    ComiteItemNote[]
 
   @@index([role])
 }
@@ -127,7 +130,8 @@ model VolunteerAvailability {
 // category : "MANUAL" | "EVENT_REMINDER" | "OPENING_REMINDER" |
 // "REPLACEMENT_REQUEST" | "REPLACEMENT_PROBLEM" | "TASK_REMINDER" |
 // "GROUP_PEER" (envoyée par un·e bénévole à son propre groupe, voir
-// sendGroupNotification).
+// sendGroupNotification) | "COMITE_ITEM" (bouton "Notifier le comité" sur
+// un item du module Comité, voir notifyComiteAboutItem).
 model PushNotificationLog {
   id             String   @id @default(cuid())
   category       String
@@ -415,4 +419,76 @@ model AttendanceSession {
   createdAt     DateTime    @default(now())
 
   @@index([eventSignupId])
+}
+
+// Module interne au comité (Espace organisation > Comité, réservé au rôle
+// COMITE) : tableau partagé de notes et de tâches, pour éviter qu'une tâche
+// reste en suspens parce que chacun·e pense qu'un·e autre va s'en charger.
+
+// Catégorie créée à la volée par un membre du comité (voir createComiteCategory),
+// indépendante d'un item en particulier.
+model ComiteItemCategory {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+
+  items ComiteItem[]
+}
+
+// type : "NOTE" | "TACHE" (validé côté application, voir
+// src/lib/actions/comite.ts). Une note est juste un post-it partagé ; une
+// tâche a en plus une priorité, une échéance facultative, un statut fait/à
+// faire, et peut être déclinée (voir ComiteItemDecline).
+model ComiteItem {
+  id          String    @id @default(cuid())
+  type        String    @default("TACHE")
+  title       String
+  description String?   @db.Text
+  // "BASSE" | "NORMALE" | "HAUTE" | "URGENTE" — pertinent seulement pour
+  // une tâche (toujours null pour une note).
+  priority    String?
+  dueDate     DateTime? @db.Date
+  done        Boolean   @default(false)
+  categoryId  String?
+  category    ComiteItemCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  authorId    String
+  author      User      @relation(fields: [authorId], references: [id])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  declines ComiteItemDecline[]
+  notes    ComiteItemNote[]
+
+  @@index([categoryId])
+  @@index([done])
+}
+
+// Un membre du comité déclare explicitement "pas pour moi" sur une tâche,
+// pour que les autres sachent tout de suite que ce n'est pas réglé et ne
+// comptent pas sur cette personne — plutôt que de laisser chacun·e
+// supposer en silence que quelqu'un d'autre va s'en charger.
+model ComiteItemDecline {
+  id        String     @id @default(cuid())
+  itemId    String
+  item      ComiteItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime   @default(now())
+
+  @@unique([itemId, userId])
+  @@index([userId])
+}
+
+// Fil de discussion sous un item (note libre, ou demande/réponse de statut
+// sur une tâche — ex. « Où ça en est ? » / « Fait, il manquait juste X »).
+model ComiteItemNote {
+  id        String     @id @default(cuid())
+  itemId    String
+  item      ComiteItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User       @relation(fields: [authorId], references: [id])
+  body      String     @db.Text
+  createdAt DateTime   @default(now())
+
+  @@index([itemId])
 }

@@ -17,3 +17,14 @@ export async function requireOrganisationUser() {
   }
   return user;
 }
+
+// Module Comité (Espace organisation > Comité) : réservé au rôle COMITE,
+// contrairement au reste de l'Espace organisation ouvert aussi aux
+// responsables.
+export async function requireComiteUser() {
+  const user = await requireUser();
+  if (user.role !== "COMITE") {
+    redirect("/organisation");
+  }
+  return user;
+}
