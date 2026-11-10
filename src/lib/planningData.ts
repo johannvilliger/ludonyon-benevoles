@@ -1,5 +1,12 @@
 import { prisma } from "@/lib/prisma";
-import { getPlanningWeeks, shiftKey, type PlanningWeek } from "@/lib/planning";
+import {
+  findColumnForDate,
+  getPlanningWeeks,
+  shiftKey,
+  type PlanningWeek,
+  type Periode,
+  type Site,
+} from "@/lib/planning";
 
 export type ShiftAssignee = {
   userId: string;
@@ -65,4 +72,84 @@ export async function loadPlanningWeeksAndShifts(
   }
 
   return { weeks, shiftsByKey, closures };
+}
+
+export type UpcomingShiftRow = {
+  date: Date;
+  site: Site;
+  periode: Periode;
+  assignees: ShiftAssignee[];
+  closed: boolean;
+  // Créneau sans personne, ou avec quelqu'un en recherche de
+  // remplaçant·e — mis en évidence sur le tableau de bord (Vue
+  // d'ensemble). Un créneau fermé (vacances globales) n'est jamais un
+  // problème. Ne vérifie pas la couverture fine par poste (ça, c'est le
+  // rôle de l'alerte hebdomadaire — voir checkAndSendUnfilledShiftAlerts
+  // dans reminders.ts), juste "visiblement vide ou en souci".
+  problem: boolean;
+};
+
+// Grille théorique des `days` prochains jours (aujourd'hui inclus)
+// comparée à ce qui est réellement assigné — pour le tableau de bord de
+// Vue d'ensemble. Contrairement à loadPlanningWeeksAndShifts (semaines
+// calendaires complètes d'un mois), ici c'est une fenêtre glissante de N
+// jours à partir d'aujourd'hui.
+export async function loadUpcomingShiftsOverview(days: number): Promise<UpcomingShiftRow[]> {
+  const now = new Date();
+  const todayUTC = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+  const endUTC = new Date(todayUTC);
+  endUTC.setUTCDate(endUTC.getUTCDate() + days);
+
+  const [shifts, closures] = await Promise.all([
+    prisma.openingShift.findMany({
+      where: { date: { gte: todayUTC, lt: endUTC } },
+      include: {
+        assignees: {
+          include: { user: { select: { id: true, name: true, active: true, poste: true, role: true } } },
+        },
+      },
+    }),
+    prisma.planningClosure.findMany({
+      where: { startDate: { lt: endUTC }, endDate: { gte: todayUTC } },
+    }),
+  ]);
+
+  const shiftsByKey = new Map<string, (typeof shifts)[number]>();
+  for (const shift of shifts) {
+    shiftsByKey.set(shiftKey(shift.date, shift.site as Site, shift.periode as Periode), shift);
+  }
+
+  const rows: UpcomingShiftRow[] = [];
+  for (let d = 0; d < days; d++) {
+    const date = new Date(todayUTC);
+    date.setUTCDate(date.getUTCDate() + d);
+    const column = findColumnForDate(date);
+    if (!column) continue;
+
+    const closed = closures.some((c) => c.startDate <= date && c.endDate >= date);
+
+    for (const slot of column.slots) {
+      const shift = shiftsByKey.get(shiftKey(date, slot.site, slot.periode));
+      const assignees: ShiftAssignee[] = (shift?.assignees ?? [])
+        .filter((a) => a.user.active)
+        .map((a) => ({
+          userId: a.user.id,
+          name: a.user.name,
+          role: a.user.role,
+          seekingReplacement: a.seekingReplacement,
+          fonction: a.fonction,
+          poste: a.user.poste,
+        }));
+      rows.push({
+        date,
+        site: slot.site,
+        periode: slot.periode,
+        assignees,
+        closed,
+        problem: !closed && (assignees.length === 0 || assignees.some((a) => a.seekingReplacement)),
+      });
+    }
+  }
+
+  return rows;
 }

@@ -104,7 +104,7 @@ export function formatHoursRange(start: string, end: string): string {
 // lundi = offset 0, ... dimanche = offset 6, comme dans PLANNING_COLUMNS.
 // Le jour LOCAL de `date` fait foi (cohérent avec dateKey ci-dessous et le
 // TZ serveur Europe/Zurich).
-function findColumnForDate(date: Date): ColumnDef | undefined {
+export function findColumnForDate(date: Date): ColumnDef | undefined {
   const mondayBasedOffset = (date.getDay() + 6) % 7;
   return PLANNING_COLUMNS.find((c) => c.offset === mondayBasedOffset);
 }
