@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireOrganisationUser } from "@/lib/session";
+import { requireComiteUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { mailConfigured } from "@/lib/mail";
 import { generateProvisionalPassword } from "@/lib/password";
@@ -11,8 +11,14 @@ import { sendWelcomeEmail } from "@/lib/actions/organisation";
 
 const PATH = "/organisation/benevoles/ludoapp";
 
+// Réservé au comité (pas juste responsable/comité comme le reste de
+// l'Espace organisation) : lier ou créer un compte depuis LudoApp fixe le
+// rôle d'après celui du compte LudoApp (voir mapLudoAppRole), y compris
+// COMITE pour un compte "admin" — un responsable ne doit pas pouvoir
+// s'auto-promouvoir en se liant lui-même à un tel compte.
+
 export async function triggerLudoAppPull() {
-  await requireOrganisationUser();
+  await requireComiteUser();
   await pullLudoAppAccounts();
   revalidatePath(PATH);
 }
@@ -23,7 +29,7 @@ export async function triggerLudoAppPull() {
 // qui ne fait que suggérer). Le rôle et le statut actif sont alignés tout
 // de suite sur LudoApp, sans attendre la prochaine synchro quotidienne.
 export async function linkLudoAppAccount(formData: FormData) {
-  await requireOrganisationUser();
+  await requireComiteUser();
   const ludoAppId = String(formData.get("ludoAppId") ?? "");
   const userId = String(formData.get("userId") ?? "");
   if (!ludoAppId || !userId) throw new Error("Champs invalides");
@@ -47,7 +53,7 @@ export async function linkLudoAppAccount(formData: FormData) {
 }
 
 export async function unlinkLudoAppAccount(formData: FormData) {
-  await requireOrganisationUser();
+  await requireComiteUser();
   const userId = String(formData.get("userId") ?? "");
   await prisma.user.update({ where: { id: userId }, data: { ludoAppUserId: null } });
   revalidatePath(PATH);
@@ -60,7 +66,7 @@ export async function unlinkLudoAppAccount(formData: FormData) {
 // normale (voir createVolunteer), si LudoApp a bien un email pour ce
 // compte et que l'envoi est configuré.
 export async function createVolunteerFromLudoAppAccount(formData: FormData) {
-  await requireOrganisationUser();
+  await requireComiteUser();
   const ludoAppId = String(formData.get("ludoAppId") ?? "");
 
   const compte = await prisma.ludoAppAccountCache.findUnique({ where: { id: ludoAppId } });

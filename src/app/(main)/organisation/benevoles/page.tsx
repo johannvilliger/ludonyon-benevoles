@@ -64,12 +64,14 @@ export default async function OrganisationBenevolesPage({
             >
               📋 Import groupé depuis Excel
             </Link>
-            <Link
-              href="/organisation/benevoles/ludoapp"
-              className="text-sm text-brand-blue hover:underline"
-            >
-              🔗 Synchro LudoApp
-            </Link>
+            {currentUser.role === "COMITE" && (
+              <Link
+                href="/organisation/benevoles/ludoapp"
+                className="text-sm text-brand-blue hover:underline"
+              >
+                🔗 Synchro LudoApp
+              </Link>
+            )}
           </div>
         </div>
         <p className="mt-1 text-xs text-stone-400">

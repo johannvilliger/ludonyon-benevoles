@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { requireOrganisationUser } from "@/lib/session";
+import { requireComiteUser } from "@/lib/session";
 import { formatDateTime } from "@/lib/format";
 import { ROLE_LABELS } from "@/lib/roles";
 import { ludoAppSyncConfigured, mapLudoAppRole, normalizeNameForMatch } from "@/lib/ludoAppSync";
@@ -18,7 +18,7 @@ const LUDOAPP_ROLE_LABELS: Record<string, string> = {
 };
 
 export default async function LudoAppSyncPage() {
-  await requireOrganisationUser();
+  await requireComiteUser();
   const configured = ludoAppSyncConfigured();
 
   const [sync, allAccounts, linkedUsers, unlinkedUsers] = await Promise.all([
