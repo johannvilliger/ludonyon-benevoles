@@ -4,6 +4,7 @@ import { getPlanningWeeks, shiftKey, type PlanningWeek } from "@/lib/planning";
 export type ShiftAssignee = {
   userId: string;
   name: string;
+  role: string;
   seekingReplacement: boolean;
   // Fonction Excel (Ordi-caisse/Ordi retours/Accueil/Anim.) attribuée à
   // l'import — précise et propre à ce créneau, mais absente pour une
@@ -36,7 +37,7 @@ export async function loadPlanningWeeksAndShifts(
       where: { date: { gte: rangeStart, lt: rangeEnd } },
       include: {
         assignees: {
-          include: { user: { select: { id: true, name: true, active: true, poste: true } } },
+          include: { user: { select: { id: true, name: true, active: true, poste: true, role: true } } },
         },
       },
     }),
@@ -55,6 +56,7 @@ export async function loadPlanningWeeksAndShifts(
         .map((a) => ({
           userId: a.user.id,
           name: a.user.name,
+          role: a.user.role,
           seekingReplacement: a.seekingReplacement,
           fonction: a.fonction,
           poste: a.user.poste,

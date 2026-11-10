@@ -6,7 +6,7 @@ import { requireOrganisationUser, requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { isOrganisationRole } from "@/lib/roles";
 import { sendPushToUsers } from "@/lib/push";
-import { POSTES, canCoverPoste, isValidPoste, type Poste } from "@/lib/postes";
+import { POSTES, canCoverPoste, canReplaceAssignee, isValidPoste, type Poste } from "@/lib/postes";
 import type { Prisma } from "@/generated/prisma/client";
 import {
   PLANNING_COLUMNS,
@@ -298,14 +298,25 @@ export async function fulfillShiftReplacement(formData: FormData) {
   const shiftId = String(formData.get("shiftId") ?? "");
   const replacedUserId = String(formData.get("userId") ?? "");
 
-  const target = await prisma.openingShiftAssignee.findUnique({
-    where: { shiftId_userId: { shiftId, userId: replacedUserId } },
-  });
+  const [target, viewer] = await Promise.all([
+    prisma.openingShiftAssignee.findUnique({
+      where: { shiftId_userId: { shiftId, userId: replacedUserId } },
+      include: { user: { select: { role: true, poste: true } } },
+    }),
+    prisma.user.findUniqueOrThrow({ where: { id: user.id }, select: { role: true, poste: true } }),
+  ]);
   if (!target || !target.seekingReplacement) {
     throw new Error("Ce créneau n'est plus à remplacer");
   }
   if (target.userId === user.id) {
     throw new Error("Vous ne pouvez pas remplacer votre propre créneau");
+  }
+  // Même règle que côté affichage (voir canReplaceAssignee) : pas de
+  // message distinct ici, le même refus générique qu'un créneau qui
+  // n'est plus à remplacer, pour ne jamais dire à quelqu'un qu'il/elle
+  // n'a pas le niveau.
+  if (!canReplaceAssignee(target.user, viewer)) {
+    throw new Error("Ce créneau n'est plus à remplacer");
   }
 
   await prisma.$transaction([

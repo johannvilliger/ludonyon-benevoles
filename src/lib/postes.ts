@@ -30,3 +30,24 @@ export function isValidPoste(value: string): value is Poste {
 export function canCoverPoste(candidatePoste: Poste, requiredPoste: Poste): boolean {
   return POSTE_LEVEL[candidatePoste] >= POSTE_LEVEL[requiredPoste];
 }
+
+// Qui peut remplacer qui sur le planning des ouvertures (bouton "Je
+// remplace" côté affichage, et revérifié dans fulfillShiftReplacement
+// côté serveur) — même filtre que celui utilisé pour choisir qui notifier
+// lors d'une demande de remplacement (voir requestReplacement) : un·e
+// bénévole n'est remplacé·e que par un·e autre bénévole dont le poste
+// couvre le sien (ou par n'importe quel·le bénévole si son poste n'est pas
+// encore fixé) ; un·e responsable/comité n'est remplacé·e que par
+// quelqu'un·e du même rôle, sans notion de poste.
+export function canReplaceAssignee(
+  target: { role: string; poste: string | null },
+  viewer: { role: string; poste: string | null }
+): boolean {
+  if (target.role !== "BENEVOLE") {
+    return viewer.role === target.role;
+  }
+  if (viewer.role !== "BENEVOLE") return false;
+  if (!target.poste || !isValidPoste(target.poste)) return true;
+  if (!viewer.poste || !isValidPoste(viewer.poste)) return false;
+  return canCoverPoste(viewer.poste, target.poste);
+}

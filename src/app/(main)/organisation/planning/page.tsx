@@ -20,7 +20,7 @@ export default async function OrganisationPlanningPage({
   const year = Number(y) || now.getFullYear();
   const month = Number(m) || now.getMonth() + 1;
 
-  const [{ weeks, shiftsByKey, closures }, activeUsers, upcomingClosures] = await Promise.all([
+  const [{ weeks, shiftsByKey, closures }, activeUsers, upcomingClosures, currentUserRow] = await Promise.all([
     loadPlanningWeeksAndShifts(year, month),
     prisma.user.findMany({
       where: { active: true, unavailableForOpenings: false },
@@ -31,6 +31,7 @@ export default async function OrganisationPlanningPage({
       where: { endDate: { gte: new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())) } },
       orderBy: { startDate: "asc" },
     }),
+    prisma.user.findUniqueOrThrow({ where: { id: currentUser.id }, select: { poste: true } }),
   ]);
 
   return (
@@ -61,6 +62,8 @@ export default async function OrganisationPlanningPage({
             editable
             activeUsers={activeUsers}
             currentUserId={currentUser.id}
+            currentUserRole={currentUser.role}
+            currentUserPoste={currentUserRow.poste}
             isOrg
           />
         </div>

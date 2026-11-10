@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/session";
 import { isOrganisationRole } from "@/lib/roles";
+import { prisma } from "@/lib/prisma";
 import { loadPlanningWeeksAndShifts } from "@/lib/planningData";
 import PlanningMonthNav from "@/components/PlanningMonthNav";
 import PlanningTable from "@/components/PlanningTable";
@@ -18,7 +19,10 @@ export default async function PlanningPage({
   const year = Number(y) || now.getFullYear();
   const month = Number(m) || now.getMonth() + 1;
 
-  const { weeks, shiftsByKey, closures } = await loadPlanningWeeksAndShifts(year, month);
+  const [{ weeks, shiftsByKey, closures }, currentUserRow] = await Promise.all([
+    loadPlanningWeeksAndShifts(year, month),
+    prisma.user.findUniqueOrThrow({ where: { id: user.id }, select: { poste: true } }),
+  ]);
 
   return (
     <div>
@@ -59,6 +63,8 @@ export default async function PlanningPage({
           editable={false}
           activeUsers={[]}
           currentUserId={user.id}
+          currentUserRole={user.role}
+          currentUserPoste={currentUserRow.poste}
           isOrg={isOrg}
         />
       </div>

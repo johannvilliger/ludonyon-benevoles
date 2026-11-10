@@ -16,7 +16,7 @@ import {
   fulfillShiftReplacement,
 } from "@/lib/actions/planning";
 import { SEAT_REQUIREMENTS, type SeatSpec } from "@/lib/autoSchedule";
-import { POSTE_LABELS, canCoverPoste, isValidPoste } from "@/lib/postes";
+import { POSTE_LABELS, canCoverPoste, canReplaceAssignee, isValidPoste } from "@/lib/postes";
 import PlanningAssignSelect from "./PlanningAssignSelect";
 
 type ActiveUser = { id: string; name: string; role: string; poste: string | null };
@@ -63,6 +63,8 @@ export default function PlanningTable({
   editable,
   activeUsers,
   currentUserId,
+  currentUserRole,
+  currentUserPoste,
   isOrg,
 }: {
   weeks: PlanningWeek[];
@@ -71,6 +73,8 @@ export default function PlanningTable({
   editable: boolean;
   activeUsers: ActiveUser[];
   currentUserId: string;
+  currentUserRole: string;
+  currentUserPoste: string | null;
   isOrg: boolean;
 }) {
   const leaves = getLeafSlots();
@@ -182,12 +186,24 @@ export default function PlanningTable({
                       )}
                       {assignees.map((a) => {
                         const canManage = editable || isOrg || a.userId === currentUserId;
+                        // Un·e bénévole dont le poste ne couvre pas celui à
+                        // remplacer voit quand même qu'il y a un trou (pas
+                        // d'information cachée), mais ça ne le/la concerne
+                        // pas : pas de rouge alarmant, pas de bouton
+                        // cliquable, et surtout aucun message expliquant
+                        // pourquoi (voir canReplaceAssignee).
+                        const eligibleToReplace =
+                          a.seekingReplacement &&
+                          a.userId !== currentUserId &&
+                          canReplaceAssignee(a, { role: currentUserRole, poste: currentUserPoste });
                         return (
                           <li key={a.userId}>
                             <div
                               className={`flex items-center justify-between gap-1 rounded px-1.5 py-0.5 text-xs ${
                                 a.seekingReplacement
-                                  ? "border border-red-300 bg-red-100 text-red-800"
+                                  ? eligibleToReplace || a.userId === currentUserId
+                                    ? "border border-red-300 bg-red-100 text-red-800"
+                                    : "border border-stone-200 bg-stone-100 text-stone-500"
                                   : a.userId === currentUserId
                                     ? "border border-brand-blue bg-brand-blue-soft font-medium text-stone-900"
                                     : "bg-brand-yellow-soft text-stone-800"
@@ -228,7 +244,7 @@ export default function PlanningTable({
                               </form>
                             )}
 
-                            {a.seekingReplacement && a.userId !== currentUserId && shift && (
+                            {eligibleToReplace && shift && (
                               <form action={fulfillShiftReplacement} className="mt-0.5">
                                 <input type="hidden" name="shiftId" value={shift.id} />
                                 <input type="hidden" name="userId" value={a.userId} />
