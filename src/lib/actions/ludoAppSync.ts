@@ -6,16 +6,17 @@ import { prisma } from "@/lib/prisma";
 import { mailConfigured } from "@/lib/mail";
 import { generateProvisionalPassword } from "@/lib/password";
 import bcrypt from "bcryptjs";
-import { pullLudoAppAccounts, pullLudoAppHours, mapLudoAppRole } from "@/lib/ludoAppSync";
+import { pullLudoAppAccounts, pullLudoAppHours, mapLudoAppGroupe } from "@/lib/ludoAppSync";
 import { sendWelcomeEmail } from "@/lib/actions/organisation";
 
 const PATH = "/organisation/benevoles/ludoapp";
 
 // Réservé au comité (pas juste responsable/comité comme le reste de
 // l'Espace organisation) : lier ou créer un compte depuis LudoApp fixe le
-// rôle d'après celui du compte LudoApp (voir mapLudoAppRole), y compris
-// COMITE pour un compte "admin" — un responsable ne doit pas pouvoir
-// s'auto-promouvoir en se liant lui-même à un tel compte.
+// rôle d'après le groupe de droits du compte LudoApp (voir
+// mapLudoAppGroupe), y compris COMITE pour un compte "Comité" ou
+// "Administrateur" — un responsable ne doit pas pouvoir s'auto-promouvoir
+// en se liant lui-même à un tel compte.
 
 export async function triggerLudoAppPull() {
   await requireComiteUser();
@@ -44,7 +45,7 @@ export async function linkLudoAppAccount(formData: FormData) {
 
   await prisma.user.update({
     where: { id: userId },
-    data: { ludoAppUserId: ludoAppId, role: mapLudoAppRole(compte.role), active: compte.actif },
+    data: { ludoAppUserId: ludoAppId, role: mapLudoAppGroupe(compte.groupe), active: compte.actif },
   });
   await pullLudoAppHours([userId]);
 
@@ -88,7 +89,7 @@ export async function createVolunteerFromLudoAppAccount(formData: FormData) {
       name: compte.nom,
       email: compte.email,
       passwordHash,
-      role: mapLudoAppRole(compte.role),
+      role: mapLudoAppGroupe(compte.groupe),
       active: compte.actif,
       ludoAppUserId: compte.id,
     },

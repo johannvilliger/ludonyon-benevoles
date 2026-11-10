@@ -550,10 +550,13 @@ model LudoAppAccountCache {
   identifiant String
   nom         String
   email       String?
-  // "retour" | "complet" | "admin" — rôle LudoApp tel quel, converti à la
-  // volée en rôle Ludonyon via ROLE_MAP (ludoAppSync.ts) au moment de
-  // lier ou resynchroniser un compte.
-  role        String
+  // Nom du groupe de droits LudoApp (ex. "Responsable", "Comité" — voir
+  // groupes_utilisateurs côté LudoApp, configurable là-bas), converti à la
+  // volée en rôle Ludonyon via GROUPE_MAP (ludoAppSync.ts) au moment de
+  // lier ou resynchroniser un compte. Un groupe renommé ou nouvellement
+  // créé côté LudoApp qui ne correspond à aucune entrée de GROUPE_MAP
+  // retombe sur BENEVOLE par défaut — à ajuster manuellement si besoin.
+  groupe      String
   actif       Boolean
   fetchedAt   DateTime @default(now())
 }

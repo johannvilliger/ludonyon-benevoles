@@ -11,16 +11,21 @@ import type { Role } from "@/lib/roles";
 // .env.example) ; tant qu'elles sont absentes, la synchro est simplement
 // désactivée.
 
-// retour -> accès basique côté LudoApp (module Opération) -> BENEVOLE ici.
-// complet -> accès complet -> RESPONSABLE. admin -> ADMIN LudoApp -> COMITE.
-const ROLE_MAP: Record<string, Role> = {
-  retour: "BENEVOLE",
-  complet: "RESPONSABLE",
-  admin: "COMITE",
+// Groupes de droits LudoApp (groupes_utilisateurs, configurables côté
+// LudoApp — voir db/migrations/0057_groupes_permissions.sql) mappés sur
+// les rôles Ludonyon. Basé sur les 5 groupes de départ ; un groupe renommé
+// ou un nouveau groupe créé côté LudoApp qui ne figure pas ici retombe sur
+// BENEVOLE par défaut (jamais une élévation silencieuse).
+const GROUPE_MAP: Record<string, Role> = {
+  "Bénévole accueil": "BENEVOLE",
+  "Bénévole poste retour": "BENEVOLE",
+  Responsable: "RESPONSABLE",
+  Comité: "COMITE",
+  Administrateur: "COMITE",
 };
 
-export function mapLudoAppRole(ludoAppRole: string): Role {
-  return ROLE_MAP[ludoAppRole] ?? "BENEVOLE";
+export function mapLudoAppGroupe(groupe: string): Role {
+  return GROUPE_MAP[groupe] ?? "BENEVOLE";
 }
 
 export function ludoAppSyncConfigured(): boolean {
@@ -32,7 +37,7 @@ type LudoAppCompte = {
   identifiant: string;
   nom: string;
   email: string | null;
-  role: string;
+  groupe: string;
   actif: boolean;
 };
 
@@ -116,7 +121,7 @@ export async function pullLudoAppAccounts(): Promise<void> {
     linkedUsers.map((u) => {
       const compte = u.ludoAppUserId ? comptesById.get(u.ludoAppUserId) : undefined;
       if (!compte) return Promise.resolve();
-      const mappedRole = mapLudoAppRole(compte.role);
+      const mappedRole = mapLudoAppGroupe(compte.groupe);
       if (mappedRole === u.role && compte.actif === u.active) return Promise.resolve();
       return prisma.user.update({
         where: { id: u.id },

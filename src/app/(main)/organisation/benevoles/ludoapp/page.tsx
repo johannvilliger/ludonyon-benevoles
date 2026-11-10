@@ -3,19 +3,13 @@ import { prisma } from "@/lib/prisma";
 import { requireComiteUser } from "@/lib/session";
 import { formatDateTime } from "@/lib/format";
 import { ROLE_LABELS } from "@/lib/roles";
-import { ludoAppSyncConfigured, mapLudoAppRole, normalizeNameForMatch } from "@/lib/ludoAppSync";
+import { ludoAppSyncConfigured, mapLudoAppGroupe, normalizeNameForMatch } from "@/lib/ludoAppSync";
 import {
   triggerLudoAppPull,
   linkLudoAppAccount,
   unlinkLudoAppAccount,
   createVolunteerFromLudoAppAccount,
 } from "@/lib/actions/ludoAppSync";
-
-const LUDOAPP_ROLE_LABELS: Record<string, string> = {
-  retour: "Retours seuls",
-  complet: "Location + retour",
-  admin: "Administrateur",
-};
 
 export default async function LudoAppSyncPage() {
   await requireComiteUser();
@@ -118,9 +112,9 @@ export default async function LudoAppSyncPage() {
                     )}
                   </p>
                   <p className="text-xs text-stone-400">
-                    {c.identifiant} · {c.email ?? "pas d'email"} ·{" "}
-                    {LUDOAPP_ROLE_LABELS[c.role] ?? c.role} (deviendrait{" "}
-                    {ROLE_LABELS[mapLudoAppRole(c.role)]} ici)
+                    {c.identifiant} · {c.email ?? "pas d'email"} · groupe LudoApp &laquo;&nbsp;
+                    {c.groupe}&nbsp;&raquo; (deviendrait {ROLE_LABELS[mapLudoAppGroupe(c.groupe)]}{" "}
+                    ici)
                   </p>
 
                   <div className="mt-3 flex flex-wrap items-center gap-2">
