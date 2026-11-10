@@ -1,10 +1,10 @@
-import nodemailer from "nodemailer";
+import nodemailer, { type Transporter } from "nodemailer";
 
 // Envoi d'emails via un serveur SMTP externe (ex. Office 365 :
 // smtp.office365.com, port 587, STARTTLS). Voir .env.example pour les
 // variables à renseigner ; tant qu'elles ne le sont pas, mailConfigured()
 // renvoie false et les appelants doivent traiter l'envoi comme optionnel.
-let transporter: nodemailer.Transporter | null = null;
+let transporter: Transporter | null = null;
 
 export function mailConfigured(): boolean {
   return Boolean(
@@ -15,7 +15,7 @@ export function mailConfigured(): boolean {
   );
 }
 
-function getTransporter(): nodemailer.Transporter {
+function getTransporter(): Transporter {
   if (!transporter) {
     transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST,
