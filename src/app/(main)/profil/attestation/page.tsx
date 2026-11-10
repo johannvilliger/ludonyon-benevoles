@@ -2,8 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { formatDateOnly, formatDuration } from "@/lib/format";
-import PrintButton from "./PrintButton";
+import { formatDuration } from "@/lib/format";
 
 export default async function AttestationPage({
   searchParams,
@@ -56,14 +55,19 @@ export default async function AttestationPage({
 
   return (
     <div className="mx-auto max-w-2xl">
-      <div className="mb-4 flex items-center justify-between print:hidden">
+      <div className="mb-4 flex items-center justify-between">
         <Link href="/profil" className="text-sm text-brand-blue hover:underline">
           ← Retour à mon profil
         </Link>
-        <PrintButton />
+        <a
+          href={`/api/profil/attestation?annee=${year}`}
+          className="rounded-lg border-2 border-black bg-brand-yellow px-4 py-2 text-sm font-semibold text-black transition hover:bg-brand-yellow-dark"
+        >
+          📄 Télécharger l&rsquo;attestation (PDF)
+        </a>
       </div>
 
-      <div className="rounded-xl border border-stone-200 bg-white p-8 print:border-0 print:p-0 print:shadow-none">
+      <div className="rounded-xl border border-stone-200 bg-white p-8">
         <div className="flex items-center gap-3 border-b border-stone-200 pb-4">
           <Image
             src="/logo-ludotheque.png"
@@ -79,9 +83,10 @@ export default async function AttestationPage({
         </div>
 
         <p className="mt-6 text-stone-700">
-          Nous attestons que <strong>{user.name}</strong> a consacré{" "}
+          Aperçu — <strong>{user.name}</strong> a consacré{" "}
           <strong>{formatDuration(anneeData.totalMinutes)}</strong> de son temps comme
-          bénévole à la Ludothèque Nyon Région durant l&rsquo;année {year}.
+          bénévole à la Ludothèque Nyon Région durant l&rsquo;année {year}. Le bouton ci-dessus
+          génère le vrai document PDF (lettre datée, à remettre tel quel).
         </p>
 
         <table className="mt-6 w-full text-sm">
@@ -108,11 +113,6 @@ export default async function AttestationPage({
             </tr>
           </tfoot>
         </table>
-
-        <p className="mt-8 text-xs text-stone-400">
-          Document généré automatiquement le {formatDateOnly(new Date())} à partir des
-          heures enregistrées dans LudoApp.
-        </p>
       </div>
     </div>
   );
