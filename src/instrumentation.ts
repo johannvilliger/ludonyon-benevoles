@@ -5,6 +5,7 @@ const OPENING_REMINDER_HOUR = 19;
 const TASK_REMINDER_HOUR = 8;
 // Heure creuse, hors des horaires d'ouverture et des rappels du soir.
 const BACKUP_HOUR = 3;
+const LUDOAPP_SYNC_HOUR = 4;
 
 // Millisecondes jusqu'à la prochaine occurrence de `hour`:00 heure serveur
 // (TZ=Europe/Zurich en production) — aujourd'hui si l'heure n'est pas
@@ -56,6 +57,7 @@ export async function register() {
     checkAndSendTaskReminders,
   } = await import("@/lib/reminders");
   const { runDatabaseBackup } = await import("@/lib/backup");
+  const { pullLudoAppAccounts } = await import("@/lib/ludoAppSync");
 
   // Rappels d'événements : vérification fréquente, la fenêtre de rappel
   // (1h avant l'événement) est courte.
@@ -125,4 +127,18 @@ export async function register() {
       });
     }, DAY_MS);
   }, msUntilNextHour(BACKUP_HOUR));
+
+  // Synchro des comptes LudoApp : une fois par jour — voir
+  // src/lib/ludoAppSync.ts (n'a aucun effet si LUDOAPP_SYNC_URL /
+  // SYNC_BENEVOLES_JETON ne sont pas renseignées).
+  setTimeout(() => {
+    pullLudoAppAccounts().catch((err) => {
+      console.error("Erreur lors de la synchro des comptes LudoApp :", err);
+    });
+    setInterval(() => {
+      pullLudoAppAccounts().catch((err) => {
+        console.error("Erreur lors de la synchro des comptes LudoApp :", err);
+      });
+    }, DAY_MS);
+  }, msUntilNextHour(LUDOAPP_SYNC_HOUR));
 }

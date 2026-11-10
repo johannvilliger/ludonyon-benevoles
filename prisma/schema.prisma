@@ -68,6 +68,13 @@ model User {
   pullReceived           Boolean  @default(false)
   pullSize               String?
   pullCut                String?
+  // Lien vers le compte LudoApp (gestion de la ludothèque, repo séparé)
+  // de la même personne — voir src/lib/ludoAppSync.ts. Rempli soit par
+  // rapprochement manuel (Espace organisation > Bénévoles > LudoApp),
+  // soit automatiquement à la création d'un·e bénévole "fantôme" (sans
+  // email, juste pour le planning), auquel cas LudoApp crée lui-même un
+  // compte technique désactivé pour l'occasion.
+  ludoAppUserId          String?  @unique
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
@@ -529,4 +536,33 @@ model DatabaseBackupLog {
   errorMessage  String?   @db.Text
 
   @@index([startedAt])
+}
+
+// Copie locale de la liste des comptes LudoApp (GET /api/sync/comptes,
+// voir src/lib/ludoAppSync.ts), rafraîchie une fois par jour. `id` est
+// l'identifiant du compte côté LudoApp (pas un id généré ici). Jamais
+// vidée en cas d'échec de la synchro — sert justement de copie de secours
+// le temps que LudoApp soit de nouveau joignable (voir LudoAppSync
+// ci-dessous pour le suivi de fraîcheur).
+model LudoAppAccountCache {
+  id          String   @id
+  identifiant String
+  nom         String
+  email       String?
+  // "retour" | "complet" | "admin" — rôle LudoApp tel quel, converti à la
+  // volée en rôle Ludonyon via ROLE_MAP (ludoAppSync.ts) au moment de
+  // lier ou resynchroniser un compte.
+  role        String
+  actif       Boolean
+  fetchedAt   DateTime @default(now())
+}
+
+// Ligne unique (id = 1, comme parametres_operation côté LudoApp) suivant
+// l'état de la synchro périodique des comptes — affiché dans Espace
+// organisation > Bénévoles > LudoApp.
+model LudoAppSync {
+  id            Int       @id @default(1)
+  lastSuccessAt DateTime?
+  lastAttemptAt DateTime?
+  lastError     String?   @db.Text
 }

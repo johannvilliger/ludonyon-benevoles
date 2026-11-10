@@ -18,6 +18,7 @@ import { isValidOpeningFrequency, isValidAnimFrequency } from "@/lib/frequencies
 import { saveRecording, deleteRecording } from "@/lib/recordingStorage";
 import { generateProvisionalPassword } from "@/lib/password";
 import { runDatabaseBackup } from "@/lib/backup";
+import { createLudoAppTechnicalAccount } from "@/lib/ludoAppSync";
 
 // ---------- Annonces ----------
 
@@ -695,6 +696,12 @@ export async function createVolunteer(formData: FormData) {
 
   const passwordHash = email ? await bcrypt.hash(parsed.data.password!, 10) : null;
 
+  // Bénévole "fantôme" (sans email) : un compte technique désactivé est
+  // créé côté LudoApp pour avoir dès maintenant un id stable à relier
+  // (voir createLudoAppTechnicalAccount) — best-effort, n'empêche jamais
+  // la création ici en cas d'échec ou si la synchro n'est pas configurée.
+  const ludoAppUserId = email ? null : await createLudoAppTechnicalAccount(parsed.data.name);
+
   await prisma.user.create({
     data: {
       name: parsed.data.name,
@@ -703,6 +710,7 @@ export async function createVolunteer(formData: FormData) {
       skills: parsed.data.skills ?? null,
       role: parsed.data.role,
       passwordHash,
+      ludoAppUserId,
     },
   });
 

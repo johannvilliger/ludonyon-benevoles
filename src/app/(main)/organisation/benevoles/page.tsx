@@ -57,12 +57,20 @@ export default async function OrganisationBenevolesPage({
           <h2 className="text-lg font-medium text-stone-900">
             Ajouter un·e bénévole
           </h2>
-          <Link
-            href="/organisation/benevoles/import"
-            className="text-sm text-brand-blue hover:underline"
-          >
-            📋 Import groupé depuis Excel
-          </Link>
+          <div className="flex flex-wrap gap-3">
+            <Link
+              href="/organisation/benevoles/import"
+              className="text-sm text-brand-blue hover:underline"
+            >
+              📋 Import groupé depuis Excel
+            </Link>
+            <Link
+              href="/organisation/benevoles/ludoapp"
+              className="text-sm text-brand-blue hover:underline"
+            >
+              🔗 Synchro LudoApp
+            </Link>
+          </div>
         </div>
         <p className="mt-1 text-xs text-stone-400">
           {mailConfigured()
