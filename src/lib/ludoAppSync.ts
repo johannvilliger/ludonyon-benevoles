@@ -163,10 +163,14 @@ export async function pullLudoAppHours(userIds: string[]): Promise<void> {
         );
         if (!res.ok) return;
         const heures = (await res.json()) as LudoAppHeures;
+        // Number() explicite : LudoApp a déjà renvoyé des totaux en
+        // chaîne par le passé (SUM() mysql2), ce qui fait planter l'écriture
+        // Prisma (colonne Int) sans ce filet.
+        const totalMinutes = Number(heures.totalMinutes) || 0;
         await prisma.ludoAppHoursCache.upsert({
           where: { userId: u.id },
-          create: { userId: u.id, totalMinutes: heures.totalMinutes, parAnnee: heures.parAnnee },
-          update: { totalMinutes: heures.totalMinutes, parAnnee: heures.parAnnee, fetchedAt: new Date() },
+          create: { userId: u.id, totalMinutes, parAnnee: heures.parAnnee },
+          update: { totalMinutes, parAnnee: heures.parAnnee, fetchedAt: new Date() },
         });
       } catch (err) {
         console.error(`Échec de la récupération des heures LudoApp pour ${u.id} :`, err);
