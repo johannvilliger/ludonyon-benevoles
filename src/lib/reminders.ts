@@ -3,10 +3,12 @@ import { sendPushToUser, sendPushToUsers, pushConfigured } from "@/lib/push";
 import { formatEventDate, formatDateOnly } from "@/lib/format";
 import {
   SITE_LABELS,
+  findColumnForDate,
   findSlotDef,
   formatDayLabel,
   formatHourLabel,
   formatHoursRange,
+  shiftKey,
   type Periode,
   type Site,
 } from "@/lib/planning";
@@ -127,6 +129,101 @@ export async function checkAndSendReplacementProblemAlerts() {
     where: { id: { in: atRisk.map((a) => a.id) } },
     data: { problemAlertSentAt: now },
   });
+}
+
+// Alerte les responsables/comité quand un créneau des 7 prochains jours
+// n'a personne du tout — contrairement à checkAndSendReplacementProblemAlerts
+// ci-dessus, qui ne couvre que les créneaux déjà pourvus puis abandonnés.
+// Un OpeningShift n'existe en base que si quelqu'un y a été assigné : un
+// créneau jamais pourvu n'a donc aucune ligne, il faut comparer la grille
+// théorique (planning.ts) à ce qui existe réellement. La ligne est créée
+// ici au moment de l'alerte (assignees vide) pour pouvoir y marquer
+// unfilledAlertSentAt et, plus tard, un appel lancé (voir launchShiftCall
+// dans actions/planning.ts) — même mécanisme qu'un appel lancé en premier.
+export async function checkAndSendUnfilledShiftAlerts() {
+  if (!pushConfigured()) return;
+
+  const now = new Date();
+  const todayUTC = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+
+  const [existingShifts, closures] = await Promise.all([
+    prisma.openingShift.findMany({
+      where: { date: { gte: todayUTC, lte: new Date(todayUTC.getTime() + REPLACEMENT_ALERT_WINDOW_DAYS * 24 * 60 * 60 * 1000) } },
+      include: { _count: { select: { assignees: true } } },
+    }),
+    prisma.planningClosure.findMany({
+      where: {
+        startDate: { lte: new Date(todayUTC.getTime() + REPLACEMENT_ALERT_WINDOW_DAYS * 24 * 60 * 60 * 1000) },
+        endDate: { gte: todayUTC },
+      },
+    }),
+  ]);
+  const shiftByKey = new Map(
+    existingShifts.map((s) => [shiftKey(s.date, s.site as Site, s.periode as Periode), s])
+  );
+
+  const unfilled: { date: Date; site: Site; periode: Periode }[] = [];
+  for (let d = 0; d <= REPLACEMENT_ALERT_WINDOW_DAYS; d++) {
+    const date = new Date(todayUTC);
+    date.setUTCDate(date.getUTCDate() + d);
+    const column = findColumnForDate(date);
+    if (!column) continue;
+    if (closures.some((c) => c.startDate <= date && c.endDate >= date)) continue;
+
+    for (const slot of column.slots) {
+      const existing = shiftByKey.get(shiftKey(date, slot.site, slot.periode));
+      if (existing && (existing._count.assignees > 0 || existing.unfilledAlertSentAt)) continue;
+      unfilled.push({ date, site: slot.site, periode: slot.periode });
+    }
+  }
+
+  if (unfilled.length === 0) return;
+
+  const managers = await prisma.user.findMany({
+    where: { active: true, role: { in: ["RESPONSABLE", "COMITE"] } },
+    select: { id: true, name: true },
+  });
+
+  // Les lignes sont créées (ou mises à jour) même si personne n'est
+  // responsable/comité pour l'instant, pour ne pas réessayer en boucle la
+  // semaine prochaine sur un créneau déjà passé en revue.
+  await Promise.all(
+    unfilled.map((u) =>
+      prisma.openingShift.upsert({
+        where: { date_site_periode: { date: u.date, site: u.site, periode: u.periode } },
+        create: { date: u.date, site: u.site, periode: u.periode, unfilledAlertSentAt: now },
+        update: { unfilledAlertSentAt: now },
+      })
+    )
+  );
+
+  if (managers.length > 0) {
+    const lines = unfilled.map((u) => {
+      const slot = findSlotDef(u.date, u.site, u.periode);
+      const hours = slot ? ` (${formatHoursRange(slot.start, slot.end)})` : "";
+      return `${formatDayLabel(u.date)} à ${SITE_LABELS[u.site]}${hours}`;
+    });
+
+    const title = unfilled.length > 1 ? "Créneaux non pourvus" : "Créneau non pourvu";
+    const body =
+      (unfilled.length > 1
+        ? `${unfilled.length} créneaux sans personne cette semaine :\n`
+        : "Aucune personne sur ce créneau :\n") + lines.join("\n");
+
+    await sendPushToUsers(
+      managers.map((m) => m.id),
+      { title, body, url: "/organisation" }
+    );
+    await prisma.pushNotificationLog.create({
+      data: {
+        category: "UNFILLED_SHIFT",
+        title,
+        body,
+        recipients: managers.length,
+        recipientNames: managers.map((m) => m.name).join(", "),
+      },
+    });
+  }
 }
 
 // Rappel individuel la veille au soir (19h, voir instrumentation.ts) pour

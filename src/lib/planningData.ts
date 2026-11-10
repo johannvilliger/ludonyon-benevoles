@@ -87,6 +87,11 @@ export type UpcomingShiftRow = {
   // rôle de l'alerte hebdomadaire — voir checkAndSendUnfilledShiftAlerts
   // dans reminders.ts), juste "visiblement vide ou en souci".
   problem: boolean;
+  // Dernier appel ouvert lancé pour ce créneau (bouton "Lancer un appel",
+  // voir launchShiftCall) — affiché pour éviter qu'un·e autre
+  // responsable/comité ne relance sans le savoir.
+  callLaunchedAt: Date | null;
+  callLaunchedByName: string | null;
 };
 
 // Grille théorique des `days` prochains jours (aujourd'hui inclus)
@@ -107,6 +112,7 @@ export async function loadUpcomingShiftsOverview(days: number): Promise<Upcoming
         assignees: {
           include: { user: { select: { id: true, name: true, active: true, poste: true, role: true } } },
         },
+        callLaunchedBy: { select: { name: true } },
       },
     }),
     prisma.planningClosure.findMany({
@@ -147,6 +153,8 @@ export async function loadUpcomingShiftsOverview(days: number): Promise<Upcoming
         assignees,
         closed,
         problem: !closed && (assignees.length === 0 || assignees.some((a) => a.seekingReplacement)),
+        callLaunchedAt: shift?.callLaunchedAt ?? null,
+        callLaunchedByName: shift?.callLaunchedBy?.name ?? null,
       });
     }
   }

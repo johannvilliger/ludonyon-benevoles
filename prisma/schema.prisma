@@ -83,6 +83,7 @@ model User {
   comiteItems        ComiteItem[]
   comiteItemDeclines ComiteItemDecline[]
   comiteItemNotes    ComiteItemNote[]
+  shiftCallsLaunched OpeningShift[]
 
   @@index([role])
 }
@@ -131,7 +132,10 @@ model VolunteerAvailability {
 // "REPLACEMENT_REQUEST" | "REPLACEMENT_PROBLEM" | "TASK_REMINDER" |
 // "GROUP_PEER" (envoyée par un·e bénévole à son propre groupe, voir
 // sendGroupNotification) | "COMITE_ITEM" (bouton "Notifier le comité" sur
-// un item du module Comité, voir notifyComiteAboutItem).
+// un item du module Comité, voir notifyComiteAboutItem) | "UNFILLED_SHIFT"
+// (alerte hebdomadaire créneaux sans personne, voir
+// checkAndSendUnfilledShiftAlerts) | "SHIFT_CALL" (bouton "Lancer un
+// appel" sur un créneau non pourvu, voir launchShiftCall).
 model PushNotificationLog {
   id             String   @id @default(cuid())
   category       String
@@ -325,7 +329,9 @@ model TaskAssignee {
 
 // Un créneau d'ouverture (jour + site + période) tel que défini par la
 // grille hebdomadaire fixe (voir src/lib/planning.ts). Créé à la demande
-// dès qu'un·e bénévole y est assigné·e.
+// dès qu'un·e bénévole y est assigné·e — ou dès que l'alerte hebdomadaire
+// des créneaux non pourvus ou un appel ouvert le concerne, même sans
+// personne assignée (voir unfilledAlertSentAt/callLaunchedAt ci-dessous).
 // site : "NYON" | "GLAND". période : "JOURNEE" | "MATIN" | "APREM".
 model OpeningShift {
   id        String   @id @default(cuid())
@@ -334,6 +340,20 @@ model OpeningShift {
   periode   String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // Rempli quand l'alerte hebdomadaire "créneaux non pourvus" a déjà
+  // signalé ce créneau aux responsables/comité (voir
+  // checkAndSendUnfilledShiftAlerts dans reminders.ts), pour ne pas le
+  // resignaler chaque semaine tant qu'il reste vide.
+  unfilledAlertSentAt DateTime?
+  // Dernier appel ouvert lancé aux bénévoles éligibles pour ce créneau
+  // (bouton "Lancer un appel", voir launchShiftCall dans
+  // actions/planning.ts) — affiché aux responsables/comité pour éviter
+  // que plusieurs ne lancent le même appel sans le savoir. N'empêche pas
+  // un second appel délibéré (relance).
+  callLaunchedAt   DateTime?
+  callLaunchedById String?
+  callLaunchedBy   User?      @relation(fields: [callLaunchedById], references: [id], onDelete: SetNull)
 
   assignees OpeningShiftAssignee[]
 

@@ -11,7 +11,9 @@ import type { Prisma } from "@/generated/prisma/client";
 import {
   PLANNING_COLUMNS,
   SITE_LABELS,
+  findSlotDef,
   formatDayLabel,
+  formatHoursRange,
   parseDateKey,
   shiftSlotKey,
   type Periode,
@@ -335,4 +337,83 @@ export async function fulfillShiftReplacement(formData: FormData) {
 
   revalidatePath("/planning");
   revalidatePath("/organisation/planning");
+}
+
+// Appel ouvert aux bénévoles disponibles pour un créneau non pourvu (voir
+// le bloc planning de Vue d'ensemble, src/app/(main)/organisation/page.tsx)
+// — pas de filtre par poste ici (contrairement à requestReplacement) :
+// personne n'étant encore assigné, n'importe quel poste manquant peut
+// potentiellement être comblé, donc on invite large plutôt que de
+// présupposer lequel. callLaunchedAt/callLaunchedById sont affichés aux
+// autres responsables/comité pour qu'iels sachent qu'un appel a déjà été
+// lancé — n'empêche pas d'en relancer un volontairement.
+export async function launchShiftCall(formData: FormData) {
+  const user = await requireOrganisationUser();
+
+  const parsed = shiftSchema.safeParse({
+    date: formData.get("date"),
+    site: formData.get("site"),
+    periode: formData.get("periode"),
+  });
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message ?? "Créneau invalide");
+  }
+  if (!isKnownSlot(parsed.data.site, parsed.data.periode)) {
+    throw new Error("Ce créneau ne fait pas partie de la grille d'ouverture");
+  }
+
+  const date = parseDateKey(parsed.data.date);
+  const now = new Date();
+
+  await prisma.openingShift.upsert({
+    where: { date_site_periode: { date, site: parsed.data.site, periode: parsed.data.periode } },
+    create: {
+      date,
+      site: parsed.data.site,
+      periode: parsed.data.periode,
+      callLaunchedAt: now,
+      callLaunchedById: user.id,
+    },
+    update: { callLaunchedAt: now, callLaunchedById: user.id },
+  });
+
+  const key = shiftSlotKey(date, parsed.data.site, parsed.data.periode);
+  if (key) {
+    const candidates = await prisma.user.findMany({
+      where: {
+        active: true,
+        unavailableForOpenings: false,
+        role: "BENEVOLE",
+        availabilities: { some: { slotKey: key } },
+        vacations: { none: { startDate: { lte: date }, endDate: { gte: date } } },
+      },
+      select: { id: true, name: true },
+    });
+
+    if (candidates.length > 0) {
+      const slot = findSlotDef(date, parsed.data.site, parsed.data.periode);
+      const hours = slot ? ` (${formatHoursRange(slot.start, slot.end)})` : "";
+      const title = "Qui peut venir ?";
+      const body = `Un créneau n'a personne pour l'instant : ${formatDayLabel(date)} à ${SITE_LABELS[parsed.data.site]}${hours}. Disponible ?`;
+
+      await sendPushToUsers(
+        candidates.map((c) => c.id),
+        { title, body, url: "/planning" }
+      );
+      await prisma.pushNotificationLog.create({
+        data: {
+          category: "SHIFT_CALL",
+          title,
+          body,
+          recipients: candidates.length,
+          recipientNames: candidates.map((c) => c.name).join(", "),
+          authorName: user.name,
+        },
+      });
+    }
+  }
+
+  revalidatePath("/organisation");
+  revalidatePath("/organisation/planning");
+  revalidatePath("/planning");
 }

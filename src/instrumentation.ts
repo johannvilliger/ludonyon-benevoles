@@ -49,6 +49,7 @@ export async function register() {
   const {
     checkAndSendEventReminders,
     checkAndSendReplacementProblemAlerts,
+    checkAndSendUnfilledShiftAlerts,
     checkAndSendOpeningShiftReminders,
     checkAndSendTaskReminders,
   } = await import("@/lib/reminders");
@@ -62,16 +63,22 @@ export async function register() {
     });
   }, EVENT_REMINDER_INTERVAL_MS);
 
-  // Alerte créneaux à risque : une seule vérification groupée par semaine,
-  // le dimanche à 19h, pour la semaine suivante — pas de notification à
-  // chaque créneau signalé.
+  // Alerte créneaux à risque + créneaux non pourvus : une seule
+  // vérification groupée par semaine, le dimanche à 19h, pour la semaine
+  // suivante — pas de notification à chaque créneau signalé.
   setTimeout(() => {
     checkAndSendReplacementProblemAlerts().catch((err) => {
       console.error("Erreur lors de l'envoi des alertes créneaux à risque :", err);
     });
+    checkAndSendUnfilledShiftAlerts().catch((err) => {
+      console.error("Erreur lors de l'envoi des alertes créneaux non pourvus :", err);
+    });
     setInterval(() => {
       checkAndSendReplacementProblemAlerts().catch((err) => {
         console.error("Erreur lors de l'envoi des alertes créneaux à risque :", err);
+      });
+      checkAndSendUnfilledShiftAlerts().catch((err) => {
+        console.error("Erreur lors de l'envoi des alertes créneaux non pourvus :", err);
       });
     }, WEEK_MS);
   }, msUntilNextSundayAlertHour());

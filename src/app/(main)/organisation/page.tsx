@@ -2,7 +2,9 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireOrganisationUser } from "@/lib/session";
 import { loadUpcomingShiftsOverview } from "@/lib/planningData";
-import { SITE_LABELS, findSlotDef, formatDayLabel, formatHoursRange } from "@/lib/planning";
+import { SITE_LABELS, dateKey, findSlotDef, formatDayLabel, formatHoursRange } from "@/lib/planning";
+import { formatDateTime } from "@/lib/format";
+import { launchShiftCall } from "@/lib/actions/planning";
 
 // Fenêtre du bloc planning du tableau de bord — volontairement courte
 // (contrairement à l'alerte hebdomadaire des créneaux non pourvus, qui
@@ -146,7 +148,35 @@ export default async function OrganisationOverviewPage() {
                         {row.closed ? (
                           <span>Fermé</span>
                         ) : row.assignees.length === 0 ? (
-                          <span>Personne pour l&rsquo;instant</span>
+                          <>
+                            <span>Personne pour l&rsquo;instant</span>
+                            {row.callLaunchedAt ? (
+                              <span className="flex items-center gap-1.5 text-xs text-stone-500">
+                                Appel déjà lancé par {row.callLaunchedByName ?? "quelqu'un"} le{" "}
+                                {formatDateTime(row.callLaunchedAt)}
+                                <form action={launchShiftCall}>
+                                  <input type="hidden" name="date" value={dateKey(row.date)} />
+                                  <input type="hidden" name="site" value={row.site} />
+                                  <input type="hidden" name="periode" value={row.periode} />
+                                  <button type="submit" className="underline hover:text-stone-700">
+                                    Relancer
+                                  </button>
+                                </form>
+                              </span>
+                            ) : (
+                              <form action={launchShiftCall}>
+                                <input type="hidden" name="date" value={dateKey(row.date)} />
+                                <input type="hidden" name="site" value={row.site} />
+                                <input type="hidden" name="periode" value={row.periode} />
+                                <button
+                                  type="submit"
+                                  className="rounded bg-red-600 px-2 py-0.5 text-[10px] font-medium text-white hover:bg-red-700"
+                                >
+                                  Lancer un appel
+                                </button>
+                              </form>
+                            )}
+                          </>
                         ) : (
                           <span>
                             {row.assignees
