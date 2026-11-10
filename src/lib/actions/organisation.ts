@@ -16,6 +16,7 @@ import { isValidPoste } from "@/lib/postes";
 import { isValidClothingSize, isValidClothingCut } from "@/lib/clothing";
 import { isValidOpeningFrequency, isValidAnimFrequency } from "@/lib/frequencies";
 import { saveRecording, deleteRecording } from "@/lib/recordingStorage";
+import { generateProvisionalPassword } from "@/lib/password";
 
 // ---------- Annonces ----------
 
@@ -1463,4 +1464,142 @@ export async function removeGuide() {
   await requireOrganisationUser();
   await deleteGuide();
   revalidatePath("/organisation/parametres");
+}
+
+// ---------- Envoi de lancement ----------
+
+// Liste affichée dans Espace organisation > Paramètres avant l'envoi
+// (voir sendLaunchEmails) : qui va recevoir un nouveau mot de passe.
+export async function getLaunchEmailRecipients() {
+  await requireOrganisationUser();
+  return prisma.user.findMany({
+    where: { active: true, email: { not: null } },
+    select: { id: true, name: true, email: true },
+    orderBy: { name: "asc" },
+  });
+}
+
+async function sendLaunchEmail(
+  name: string,
+  email: string,
+  password: string
+): Promise<void> {
+  const url = process.env.AUTH_URL;
+  const attachments = (await guideExists())
+    ? [{ filename: "mode-emploi.pdf", path: guideAttachmentPath() }]
+    : undefined;
+
+  const lines = [
+    `Bonjour ${name},`,
+    "",
+    "La plateforme des bénévoles de la Ludothèque Nyon Région est en ligne ! Voici comment vous connecter et ce que vous pouvez y faire.",
+    "",
+    "VOS IDENTIFIANTS",
+    ...(url ? [`Adresse : ${url}`] : []),
+    `Identifiant : ${email}`,
+    `Mot de passe provisoire : ${password}`,
+    'Nous vous recommandons de le changer dès votre première connexion (menu "Mon profil").',
+    "",
+    "CE QUE VOUS POUVEZ Y FAIRE",
+    "- Annuaire : coordonnées des autres bénévoles.",
+    "- Annonces : les nouvelles de l'équipe.",
+    "- Événements : vous inscrire/désinscrire aux permanences et animations à venir.",
+    "- Planning des ouvertures : voir qui tient la ludothèque chaque semaine.",
+    '- Mon profil : vos disponibilités, vacances, et activer les notifications.',
+    "",
+    "INSTALLER L'APPLICATION SUR VOTRE TÉLÉPHONE",
+    "Ce n'est pas obligatoire (le site fonctionne aussi dans un navigateur classique), mais ça donne une icône comme une vraie application et permet de recevoir des notifications.",
+    "",
+    "Sur iPhone (obligatoire pour les notifications sur iOS) :",
+    "1. Ouvrez l'adresse ci-dessus dans Safari (pas un autre navigateur).",
+    '2. Appuyez sur l\'icône de partage (le carré avec une flèche vers le haut).',
+    '3. Choisissez « Sur l\'écran d\'accueil ».',
+    "",
+    "Sur Android :",
+    "1. Ouvrez l'adresse ci-dessus dans Chrome.",
+    '2. Appuyez sur le menu (⋮) en haut à droite.',
+    '3. Choisissez « Installer l\'application » ou « Ajouter à l\'écran d\'accueil ».',
+    "",
+    "Une fois installée (ou directement sur le site), pensez à activer les notifications depuis \"Mon profil\" si vous voulez être prévenu·e des événements à venir.",
+    ...(attachments
+      ? ["", "Vous trouverez en pièce jointe un mode d'emploi plus détaillé."]
+      : []),
+    "",
+    "À bientôt,",
+    "L'équipe de la Ludothèque Nyon Région",
+  ];
+
+  const html = lines
+    .map((line) =>
+      line === "VOS IDENTIFIANTS" ||
+      line === "CE QUE VOUS POUVEZ Y FAIRE" ||
+      line === "INSTALLER L'APPLICATION SUR VOTRE TÉLÉPHONE"
+        ? `<h3>${line}</h3>`
+        : line
+          ? `<p>${line}</p>`
+          : ""
+    )
+    .join("\n")
+    .replace(
+      `<p>Identifiant : ${email}</p>`,
+      `<p>Identifiant : <strong>${email}</strong></p>`
+    )
+    .replace(
+      `<p>Mot de passe provisoire : ${password}</p>`,
+      `<p>Mot de passe provisoire : <strong>${password}</strong></p>`
+    );
+
+  await sendMail({
+    to: email,
+    subject: "La plateforme des bénévoles est en ligne — vos identifiants",
+    text: lines.join("\n"),
+    html,
+    attachments,
+  });
+}
+
+// Réinitialise le mot de passe de tous les comptes actifs ayant un email,
+// puis envoie à chacun le nouveau mot de passe avec un résumé du
+// fonctionnement et les instructions d'installation (voir
+// sendLaunchEmail). Un mot de passe ne pouvant jamais être relu une fois
+// haché, c'est la seule façon de "redonner" un accès à tout le monde d'un
+// coup — y compris à qui aurait déjà personnalisé le sien depuis la
+// création de son compte (confirmation explicite requise côté formulaire,
+// voir ParametresPage).
+export async function sendLaunchEmails(formData: FormData) {
+  await requireOrganisationUser();
+
+  if (formData.get("confirm") !== "1") {
+    throw new Error("Confirmation manquante");
+  }
+  if (!mailConfigured()) {
+    throw new Error("Aucun serveur d'envoi configuré (variables SMTP_* absentes)");
+  }
+
+  const recipients = await prisma.user.findMany({
+    where: { active: true, email: { not: null } },
+    select: { id: true, name: true, email: true },
+  });
+
+  let sent = 0;
+  let failed = 0;
+  for (const recipient of recipients) {
+    const password = generateProvisionalPassword();
+    const passwordHash = await bcrypt.hash(password, 10);
+    await prisma.user.update({ where: { id: recipient.id }, data: { passwordHash } });
+    try {
+      await sendLaunchEmail(recipient.name, recipient.email!, password);
+      sent++;
+    } catch (err) {
+      // Le mot de passe est déjà changé en base à ce stade : la personne
+      // devra passer par "Réinitialiser le mot de passe" (Espace
+      // organisation > Bénévoles) pour lui en communiquer un nouveau
+      // manuellement si l'email n'est pas parti.
+      console.error(`Échec de l'envoi de l'email de lancement à ${recipient.email} :`, err);
+      failed++;
+    }
+  }
+
+  revalidatePath("/organisation/parametres");
+  redirect(`/organisation/parametres?lancement=${sent}&echecs=${failed}`);
 }
