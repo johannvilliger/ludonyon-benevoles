@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { mailConfigured } from "@/lib/mail";
 import { generateProvisionalPassword } from "@/lib/password";
 import bcrypt from "bcryptjs";
-import { pullLudoAppAccounts, mapLudoAppRole } from "@/lib/ludoAppSync";
+import { pullLudoAppAccounts, pullLudoAppHours, mapLudoAppRole } from "@/lib/ludoAppSync";
 import { sendWelcomeEmail } from "@/lib/actions/organisation";
 
 const PATH = "/organisation/benevoles/ludoapp";
@@ -40,6 +40,7 @@ export async function linkLudoAppAccount(formData: FormData) {
     where: { id: userId },
     data: { ludoAppUserId: ludoAppId, role: mapLudoAppRole(compte.role), active: compte.actif },
   });
+  await pullLudoAppHours([userId]);
 
   revalidatePath(PATH);
   revalidatePath("/organisation/benevoles");
@@ -76,7 +77,7 @@ export async function createVolunteerFromLudoAppAccount(formData: FormData) {
   const password = compte.email ? generateProvisionalPassword() : null;
   const passwordHash = password ? await bcrypt.hash(password, 10) : null;
 
-  await prisma.user.create({
+  const created = await prisma.user.create({
     data: {
       name: compte.nom,
       email: compte.email,
@@ -86,6 +87,7 @@ export async function createVolunteerFromLudoAppAccount(formData: FormData) {
       ludoAppUserId: compte.id,
     },
   });
+  await pullLudoAppHours([created.id]);
 
   if (compte.email && password && mailConfigured()) {
     try {

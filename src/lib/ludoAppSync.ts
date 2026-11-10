@@ -125,11 +125,49 @@ export async function pullLudoAppAccounts(): Promise<void> {
     })
   );
 
+  await pullLudoAppHours(linkedUsers.map((u) => u.id));
+
   await prisma.ludoAppSync.upsert({
     where: { id: 1 },
     create: { id: 1, lastSuccessAt: now, lastAttemptAt: now, lastError: null },
     update: { lastSuccessAt: now, lastAttemptAt: now, lastError: null },
   });
+}
+
+type LudoAppHeures = {
+  totalMinutes: number;
+  parAnnee: Record<string, { totalMinutes: number; parActivite: { nom: string; minutes: number }[] }>;
+};
+
+// Une requête par bénévole lié — sans conséquence à l'échelle d'une
+// association (quelques dizaines de comptes), appelée une fois par jour.
+// Un échec sur une personne ne bloque pas les autres ; le cache garde
+// simplement sa dernière valeur connue pour celle-ci.
+export async function pullLudoAppHours(userIds: string[]): Promise<void> {
+  const linkedUsers = await prisma.user.findMany({
+    where: { id: { in: userIds }, ludoAppUserId: { not: null } },
+    select: { id: true, ludoAppUserId: true },
+  });
+
+  await Promise.all(
+    linkedUsers.map(async (u) => {
+      try {
+        const res = await fetch(
+          syncUrl(`/api/sync/heures?utilisateurId=${encodeURIComponent(u.ludoAppUserId!)}`),
+          { headers: syncHeaders(), cache: "no-store", signal: AbortSignal.timeout(10000) }
+        );
+        if (!res.ok) return;
+        const heures = (await res.json()) as LudoAppHeures;
+        await prisma.ludoAppHoursCache.upsert({
+          where: { userId: u.id },
+          create: { userId: u.id, totalMinutes: heures.totalMinutes, parAnnee: heures.parAnnee },
+          update: { totalMinutes: heures.totalMinutes, parAnnee: heures.parAnnee, fetchedAt: new Date() },
+        });
+      } catch (err) {
+        console.error(`Échec de la récupération des heures LudoApp pour ${u.id} :`, err);
+      }
+    })
+  );
 }
 
 // "Marie-Line Dupont" -> "marielinedupont", pour une suggestion de

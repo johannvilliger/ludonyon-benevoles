@@ -91,6 +91,7 @@ model User {
   comiteItemDeclines ComiteItemDecline[]
   comiteItemNotes    ComiteItemNote[]
   shiftCallsLaunched OpeningShift[]
+  ludoAppHours       LudoAppHoursCache?
 
   @@index([role])
 }
@@ -565,4 +566,19 @@ model LudoAppSync {
   lastSuccessAt DateTime?
   lastAttemptAt DateTime?
   lastError     String?   @db.Text
+}
+
+// Heures de bénévolat enregistrées dans LudoApp (permanences, animations,
+// entretien des jeux, administration — voir GET /api/sync/heures côté
+// LudoApp), mises en cache pour chaque bénévole lié (voir
+// User.ludoAppUserId), rafraîchies une fois par jour avec le reste de la
+// synchro (pullLudoAppAccounts dans src/lib/ludoAppSync.ts). Affichées sur
+// le profil et utilisées pour l'attestation de bénévolat.
+model LudoAppHoursCache {
+  userId       String   @id
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  totalMinutes Int
+  // { "2025": { totalMinutes, parActivite: [{ nom, minutes }] }, ... }
+  parAnnee     Json
+  fetchedAt    DateTime @default(now())
 }

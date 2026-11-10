@@ -1,8 +1,9 @@
+import Link from "next/link";
 import { headers } from "next/headers";
 import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { ROLE_LABELS, type Role } from "@/lib/roles";
-import { formatEventDate, formatDateOnly } from "@/lib/format";
+import { formatEventDate, formatDateOnly, formatDuration } from "@/lib/format";
 import Avatar from "@/components/Avatar";
 import { toggleOpeningReminders, updateMyAvailability, updateMyFrequencies } from "@/lib/actions/profile";
 import {
@@ -27,6 +28,14 @@ export default async function ProfilPage() {
   const user = await prisma.user.findUniqueOrThrow({
     where: { id: authUser.id },
   });
+  const ludoAppHours = user.ludoAppUserId
+    ? await prisma.ludoAppHoursCache.findUnique({ where: { userId: authUser.id } })
+    : null;
+  const currentYear = String(new Date().getFullYear());
+  const currentYearMinutes =
+    (ludoAppHours?.parAnnee as Record<string, { totalMinutes: number }> | null)?.[currentYear]
+      ?.totalMinutes ?? 0;
+
   const vacations = await prisma.vacation.findMany({
     where: { userId: authUser.id },
     orderBy: { startDate: "asc" },
@@ -70,6 +79,25 @@ export default async function ProfilPage() {
           </p>
         </div>
       </div>
+
+      {ludoAppHours && (
+        <div className="mt-4 rounded-xl border border-stone-200 bg-white p-4">
+          <p className="text-sm text-stone-500">Heures de bénévolat {currentYear}</p>
+          <p className="mt-1 text-2xl font-semibold text-stone-900">
+            {formatDuration(currentYearMinutes)}
+          </p>
+          <p className="mt-1 text-xs text-stone-400">
+            Enregistrées dans LudoApp (permanences, animations, entretien
+            des jeux...).
+          </p>
+          <Link
+            href={`/profil/attestation?annee=${currentYear}`}
+            className="mt-2 inline-block text-sm text-brand-blue hover:underline"
+          >
+            Voir mon attestation {currentYear} →
+          </Link>
+        </div>
+      )}
 
       <h2 className="mt-8 text-lg font-medium text-stone-900">
         Mes prochains événements
