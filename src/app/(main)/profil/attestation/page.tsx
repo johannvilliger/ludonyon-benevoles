@@ -25,6 +25,9 @@ export default async function AttestationPage({
   )?.[year];
 
   if (!hours || !anneeData) {
+    const autresAnnees = Object.keys(
+      (hours?.parAnnee as Record<string, unknown> | undefined) ?? {}
+    ).sort((a, b) => Number(b) - Number(a));
     return (
       <div className="max-w-md">
         <Link href="/profil" className="text-sm text-brand-blue hover:underline">
@@ -34,6 +37,19 @@ export default async function AttestationPage({
           Aucune heure enregistrée dans LudoApp pour {year}
           {!user.ludoAppUserId && " (compte non lié à LudoApp)"}.
         </p>
+        {autresAnnees.length > 0 && (
+          <p className="mt-2 text-sm text-stone-500">
+            Années disponibles :{" "}
+            {autresAnnees.map((a, i) => (
+              <span key={a}>
+                {i > 0 && ", "}
+                <Link href={`/profil/attestation?annee=${a}`} className="text-brand-blue hover:underline">
+                  {a}
+                </Link>
+              </span>
+            ))}
+          </p>
+        )}
       </div>
     );
   }

@@ -31,10 +31,16 @@ export default async function ProfilPage() {
   const ludoAppHours = user.ludoAppUserId
     ? await prisma.ludoAppHoursCache.findUnique({ where: { userId: authUser.id } })
     : null;
-  const currentYear = String(new Date().getFullYear());
-  const currentYearMinutes =
-    (ludoAppHours?.parAnnee as Record<string, { totalMinutes: number }> | null)?.[currentYear]
-      ?.totalMinutes ?? 0;
+  // Années avec des heures enregistrées, les plus récentes d'abord — pas
+  // d'hypothèse sur "l'année en cours" : beaucoup de bénévoles ont des
+  // heures surtout sur une année précédente (import InfoLudo, saison
+  // passée...), afficher "0h 2026" serait trompeur alors qu'il y a bien
+  // des heures ailleurs.
+  const ludoAppYears = Object.entries(
+    (ludoAppHours?.parAnnee as Record<string, { totalMinutes: number }> | null) ?? {}
+  )
+    .map(([annee, v]) => ({ annee, totalMinutes: v.totalMinutes }))
+    .sort((a, b) => Number(b.annee) - Number(a.annee));
 
   const vacations = await prisma.vacation.findMany({
     where: { userId: authUser.id },
@@ -82,20 +88,30 @@ export default async function ProfilPage() {
 
       {ludoAppHours && (
         <div className="mt-4 rounded-xl border border-stone-200 bg-white p-4">
-          <p className="text-sm text-stone-500">Heures de bénévolat {currentYear}</p>
+          <p className="text-sm text-stone-500">Heures de bénévolat (total)</p>
           <p className="mt-1 text-2xl font-semibold text-stone-900">
-            {formatDuration(currentYearMinutes)}
+            {formatDuration(ludoAppHours.totalMinutes)}
           </p>
           <p className="mt-1 text-xs text-stone-400">
             Enregistrées dans LudoApp (permanences, animations, entretien
             des jeux...).
           </p>
-          <Link
-            href={`/profil/attestation?annee=${currentYear}`}
-            className="mt-2 inline-block text-sm text-brand-blue hover:underline"
-          >
-            Voir mon attestation {currentYear} →
-          </Link>
+          {ludoAppYears.length === 0 ? (
+            <p className="mt-2 text-sm text-stone-400">Rien d&rsquo;enregistré pour l&rsquo;instant.</p>
+          ) : (
+            <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+              {ludoAppYears.map((y) => (
+                <li key={y.annee}>
+                  <Link
+                    href={`/profil/attestation?annee=${y.annee}`}
+                    className="text-brand-blue hover:underline"
+                  >
+                    Attestation {y.annee} ({formatDuration(y.totalMinutes)}) →
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
 
