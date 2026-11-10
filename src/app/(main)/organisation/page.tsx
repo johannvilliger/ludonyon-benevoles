@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireOrganisationUser } from "@/lib/session";
 import { loadUpcomingShiftsOverview } from "@/lib/planningData";
 import { SITE_LABELS, dateKey, findSlotDef, formatDayLabel, formatHoursRange } from "@/lib/planning";
-import { formatDateTime } from "@/lib/format";
+import { formatDateOnly, formatDateTime } from "@/lib/format";
 import { launchShiftCall } from "@/lib/actions/planning";
 
 // Fenêtre du bloc planning du tableau de bord — volontairement courte
@@ -25,6 +25,7 @@ export default async function OrganisationOverviewPage() {
     pendingReplacementCount,
     overdueComiteTaskCount,
     upcomingShifts,
+    lastBackup,
   ] = await Promise.all([
     prisma.user.count({ where: { active: true } }),
     prisma.event.count({ where: { startsAt: { gte: now } } }),
@@ -38,6 +39,7 @@ export default async function OrganisationOverviewPage() {
         })
       : Promise.resolve(0),
     loadUpcomingShiftsOverview(LOOKAHEAD_DAYS),
+    prisma.databaseBackupLog.findFirst({ orderBy: { startedAt: "desc" } }),
   ]);
 
   const cards = [
@@ -72,6 +74,12 @@ export default async function OrganisationOverviewPage() {
           },
         ]
       : []),
+    {
+      href: "/organisation/parametres",
+      label: "Dernière sauvegarde",
+      value: !lastBackup ? "Jamais" : lastBackup.success ? formatDateOnly(lastBackup.startedAt) : "Échec",
+      alert: !lastBackup || !lastBackup.success,
+    },
   ];
 
   // Regroupé par jour pour l'affichage (un jour peut avoir 1 ou 2 créneaux

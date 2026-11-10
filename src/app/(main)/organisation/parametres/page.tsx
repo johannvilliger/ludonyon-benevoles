@@ -1,11 +1,14 @@
+import { prisma } from "@/lib/prisma";
 import { requireOrganisationUser } from "@/lib/session";
 import { mailConfigured } from "@/lib/mail";
 import { guideExists } from "@/lib/guideStorage";
+import { formatDateTime } from "@/lib/format";
 import {
   uploadGuide,
   removeGuide,
   getLaunchEmailRecipients,
   sendLaunchEmails,
+  triggerManualBackup,
 } from "@/lib/actions/organisation";
 
 export default async function OrganisationParametresPage({
@@ -13,10 +16,16 @@ export default async function OrganisationParametresPage({
 }: {
   searchParams: Promise<{ lancement?: string; echecs?: string }>;
 }) {
-  await requireOrganisationUser();
+  const user = await requireOrganisationUser();
+  const isComite = user.role === "COMITE";
   const hasGuide = await guideExists();
   const { lancement, echecs } = await searchParams;
-  const recipients = await getLaunchEmailRecipients();
+  const [recipients, recentBackups] = await Promise.all([
+    getLaunchEmailRecipients(),
+    isComite
+      ? prisma.databaseBackupLog.findMany({ orderBy: { startedAt: "desc" }, take: 10 })
+      : Promise.resolve([]),
+  ]);
 
   return (
     <div className="space-y-8">
@@ -165,6 +174,53 @@ export default async function OrganisationParametresPage({
           </div>
         )}
       </section>
+
+      {isComite && (
+        <section>
+          <h2 className="text-lg font-medium text-stone-900">Sauvegardes</h2>
+          <p className="mt-1 text-sm text-stone-500">
+            Export complet de la base chaque nuit à 3h, conservé 14 jours.
+            Réservé au comité : contient les mots de passe (hachés) de tous
+            les comptes.
+          </p>
+          <div className="mt-3 rounded-xl border border-stone-200 bg-white p-4">
+            <form action={triggerManualBackup}>
+              <button
+                type="submit"
+                className="rounded-lg border border-stone-300 px-3 py-1.5 text-sm text-stone-600 hover:bg-stone-100"
+              >
+                Lancer une sauvegarde maintenant
+              </button>
+            </form>
+            {recentBackups.length === 0 ? (
+              <p className="mt-3 text-sm text-stone-400">
+                Aucune sauvegarde pour l&rsquo;instant.
+              </p>
+            ) : (
+              <ul className="mt-3 divide-y divide-stone-100 text-sm">
+                {recentBackups.map((b) => (
+                  <li key={b.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                    <span className={b.success ? "text-stone-700" : "text-red-700"}>
+                      {formatDateTime(b.startedAt)}
+                      {b.success
+                        ? ` — ${((b.fileSizeBytes ?? 0) / 1024).toFixed(0)} Ko`
+                        : ` — échec (${b.errorMessage ?? "erreur inconnue"})`}
+                    </span>
+                    {b.success && b.fileName && (
+                      <a
+                        href={`/api/organisation/sauvegardes/${b.fileName}`}
+                        className="text-brand-blue hover:underline"
+                      >
+                        Télécharger
+                      </a>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

@@ -148,6 +148,24 @@ venir d'une limite de taille côté reverse-proxy d'Infomaniak (indépendante
 de la limite Next.js déjà relevée à 220 Mo dans `next.config.ts`) — à
 vérifier avec le support Infomaniak le cas échéant.
 
+### Sauvegardes automatiques
+
+Chaque nuit à 3h (heure serveur), un export JSON complet de toutes les
+tables est écrit dans `storage/backups/` à la racine du projet — hors
+dépôt Git, hors `public/`, comme les enregistrements ci-dessus. Les 14
+derniers jours sont conservés, les plus anciens supprimés
+automatiquement. Déclenchable aussi à la main, et téléchargeable,
+depuis **Espace organisation → Paramètres** (réservé au rôle Comité : le
+fichier contient les mots de passe de tous les comptes, hachés mais
+sensibles).
+
+⚠️ Comme pour les photos et enregistrements, ce dossier doit survivre aux
+déploiements. Mais contrairement à eux, c'est une vraie sauvegarde de
+secours : pensez à en télécharger une copie de temps en temps vers un
+endroit hors de ce serveur (ordinateur personnel, cloud...) — un
+problème qui toucherait le disque du serveur emporterait aussi bien la
+base que ce dossier.
+
 ### Planning : import/export Excel et vacances globales
 
 Depuis **Espace organisation → Planning**, un·e responsable/comité peut

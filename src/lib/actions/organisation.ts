@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
-import { requireOrganisationUser, requireUser } from "@/lib/session";
+import { requireComiteUser, requireOrganisationUser, requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { ROLES, isOrganisationRole, canAccessEventAudience } from "@/lib/roles";
 import { savePhoto, deletePhoto } from "@/lib/photoStorage";
@@ -17,6 +17,7 @@ import { isValidClothingSize, isValidClothingCut } from "@/lib/clothing";
 import { isValidOpeningFrequency, isValidAnimFrequency } from "@/lib/frequencies";
 import { saveRecording, deleteRecording } from "@/lib/recordingStorage";
 import { generateProvisionalPassword } from "@/lib/password";
+import { runDatabaseBackup } from "@/lib/backup";
 
 // ---------- Annonces ----------
 
@@ -1602,4 +1603,15 @@ export async function sendLaunchEmails(formData: FormData) {
 
   revalidatePath("/organisation/parametres");
   redirect(`/organisation/parametres?lancement=${sent}&echecs=${failed}`);
+}
+
+// ---------- Sauvegardes ----------
+
+// Réservé au comité (pas juste responsable/comité) : déclenche la même
+// sauvegarde que le job automatique quotidien (voir src/lib/backup.ts et
+// instrumentation.ts), journalisée de la même façon.
+export async function triggerManualBackup() {
+  await requireComiteUser();
+  await runDatabaseBackup();
+  revalidatePath("/organisation/parametres");
 }

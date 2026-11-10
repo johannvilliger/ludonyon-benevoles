@@ -512,3 +512,21 @@ model ComiteItemNote {
 
   @@index([itemId])
 }
+
+// Historique des sauvegardes automatiques de la base (voir
+// src/lib/backup.ts), consultable dans Espace organisation > Paramètres.
+// Le fichier lui-même (export JSON de toutes les tables) est stocké hors
+// dépôt Git et hors public/, dans storage/backups/ — jamais servi par une
+// URL statique, accès réservé au comité (contient les hash de mots de
+// passe) via une route API dédiée qui vérifie le rôle.
+model DatabaseBackupLog {
+  id            String    @id @default(cuid())
+  startedAt     DateTime  @default(now())
+  finishedAt    DateTime?
+  success       Boolean   @default(false)
+  fileName      String?
+  fileSizeBytes Int?
+  errorMessage  String?   @db.Text
+
+  @@index([startedAt])
+}

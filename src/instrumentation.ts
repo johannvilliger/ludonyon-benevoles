@@ -3,6 +3,8 @@ const WEEK_MS = 7 * DAY_MS;
 const REPLACEMENT_ALERT_HOUR = 19;
 const OPENING_REMINDER_HOUR = 19;
 const TASK_REMINDER_HOUR = 8;
+// Heure creuse, hors des horaires d'ouverture et des rappels du soir.
+const BACKUP_HOUR = 3;
 
 // Millisecondes jusqu'à la prochaine occurrence de `hour`:00 heure serveur
 // (TZ=Europe/Zurich en production) — aujourd'hui si l'heure n'est pas
@@ -53,6 +55,7 @@ export async function register() {
     checkAndSendOpeningShiftReminders,
     checkAndSendTaskReminders,
   } = await import("@/lib/reminders");
+  const { runDatabaseBackup } = await import("@/lib/backup");
 
   // Rappels d'événements : vérification fréquente, la fenêtre de rappel
   // (1h avant l'événement) est courte.
@@ -108,4 +111,18 @@ export async function register() {
       });
     }, DAY_MS);
   }, msUntilNextHour(TASK_REMINDER_HOUR));
+
+  // Sauvegarde de la base : une fois par jour, à 3h du matin — voir
+  // src/lib/backup.ts (journalisée dans DatabaseBackupLog, consultable
+  // dans Espace organisation > Paramètres).
+  setTimeout(() => {
+    runDatabaseBackup().catch((err) => {
+      console.error("Erreur lors de la sauvegarde de la base :", err);
+    });
+    setInterval(() => {
+      runDatabaseBackup().catch((err) => {
+        console.error("Erreur lors de la sauvegarde de la base :", err);
+      });
+    }, DAY_MS);
+  }, msUntilNextHour(BACKUP_HOUR));
 }
