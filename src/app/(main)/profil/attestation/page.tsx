@@ -68,18 +68,17 @@ export default async function AttestationPage({
       </div>
 
       <div className="rounded-xl border border-stone-200 bg-white p-8">
-        <div className="flex items-center gap-3 border-b border-stone-200 pb-4">
+        <div className="border-b border-stone-200 pb-4">
+          {/* Logo = bandeau large (icône + texte intégré), pas une icône
+              carrée : le forcer dans une case carrée l'écrasait. */}
           <Image
             src="/logo-ludotheque.png"
             alt="Ludothèque Nyon Région"
-            width={56}
-            height={56}
-            className="h-14 w-14 shrink-0"
+            width={240}
+            height={67}
+            className="h-auto w-48"
           />
-          <div>
-            <p className="font-semibold text-stone-900">Ludothèque Nyon Région</p>
-            <p className="text-sm text-stone-500">Attestation de bénévolat {year}</p>
-          </div>
+          <p className="mt-2 text-sm text-stone-500">Attestation de bénévolat {year}</p>
         </div>
 
         <p className="mt-6 text-stone-700">

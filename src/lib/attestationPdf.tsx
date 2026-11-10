@@ -5,10 +5,12 @@ const LOGO_PATH = path.join(process.cwd(), "public", "logo-ludotheque.png");
 
 const styles = StyleSheet.create({
   page: { padding: 56, fontSize: 11, fontFamily: "Helvetica", color: "#1c1917" },
-  header: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 32 },
-  logo: { width: 48, height: 48 },
-  orgName: { fontSize: 14, fontFamily: "Helvetica-Bold" },
-  orgSubtitle: { fontSize: 10, color: "#78716c", marginTop: 2 },
+  header: { marginBottom: 32 },
+  // Le logo est un bandeau large (icône + texte "Ludothèque Nyon Région"
+  // déjà intégré), pas une icône carrée — ratio réel ~3.58:1, le forcer
+  // dans un carré l'écrasait.
+  logo: { width: 180, height: 50 },
+  orgSubtitle: { fontSize: 10, color: "#78716c", marginTop: 6 },
   date: { marginBottom: 24, textAlign: "right" },
   salutation: { marginBottom: 16 },
   paragraph: { marginBottom: 14, lineHeight: 1.5 },
@@ -58,10 +60,7 @@ function AttestationDocument({ data }: { data: AttestationData }) {
         <View style={styles.header}>
           {/* eslint-disable-next-line jsx-a11y/alt-text -- Image ici vient de @react-pdf/renderer (document PDF), pas une balise HTML */}
           <Image src={LOGO_PATH} style={styles.logo} />
-          <View>
-            <Text style={styles.orgName}>Ludothèque Nyon Région</Text>
-            <Text style={styles.orgSubtitle}>Attestation de bénévolat</Text>
-          </View>
+          <Text style={styles.orgSubtitle}>Attestation de bénévolat</Text>
         </View>
 
         <Text style={styles.date}>Nyon, le {data.genereLe}</Text>
