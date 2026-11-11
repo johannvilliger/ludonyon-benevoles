@@ -1,7 +1,11 @@
-import path from "path";
 import { Document, Page, View, Text, Image, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
+import { LOGO_LUDOTHEQUE_BASE64 } from "@/lib/logoLudothequeBase64";
 
-const LOGO_PATH = path.join(process.cwd(), "public", "logo-ludotheque.png");
+// Logo embarqué en base64 (voir logoLudothequeBase64.ts) plutôt que lu
+// depuis public/ à l'exécution : un chemin construit via process.cwd()
+// faisait planter le build en production (Turbopack le traçait comme un
+// dossier à lister plutôt qu'un fichier), jamais reproduit en local.
+const LOGO_SRC = `data:image/png;base64,${LOGO_LUDOTHEQUE_BASE64}`;
 
 const styles = StyleSheet.create({
   page: { padding: 56, fontSize: 11, fontFamily: "Helvetica", color: "#1c1917" },
@@ -59,7 +63,7 @@ function AttestationDocument({ data }: { data: AttestationData }) {
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
           {/* eslint-disable-next-line jsx-a11y/alt-text -- Image ici vient de @react-pdf/renderer (document PDF), pas une balise HTML */}
-          <Image src={LOGO_PATH} style={styles.logo} />
+          <Image src={LOGO_SRC} style={styles.logo} />
           <Text style={styles.orgSubtitle}>Attestation de bénévolat</Text>
         </View>
 
